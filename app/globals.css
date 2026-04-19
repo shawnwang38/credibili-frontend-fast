@@ -195,3 +195,13 @@ body {
     font-family: var(--font-mono), ui-monospace, "JetBrains Mono", monospace;
   }
 }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}

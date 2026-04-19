@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import type { AppUIMessage, FeedPanel } from "@/lib/api-types";
-import type { Score } from "@/lib/schemas";
+import type { Score, PastClaim, PresentState } from "@/lib/schemas";
 import { useAppStore } from "@/lib/store";
 import { AnalyzingBanner } from "@/components/depth/analyzing-banner";
 import { BackgroundPanel } from "@/components/depth/background-panel";
@@ -38,12 +38,28 @@ function extractScore(messages: AppUIMessage[]): Score | null {
   let last: Score | null = null;
   for (const m of messages) {
     for (const part of m.parts) {
-      if (part.type === "data-score") {
-        last = part.data as Score;
-      }
+      if (part.type === "data-score") last = part.data as Score;
     }
   }
   return last;
+}
+
+function extractPastClaims(messages: AppUIMessage[]): PastClaim[] | null {
+  for (const m of messages) {
+    for (const part of m.parts) {
+      if (part.type === "data-past-claims") return part.data as PastClaim[];
+    }
+  }
+  return null;
+}
+
+function extractPresentState(messages: AppUIMessage[]): PresentState | null {
+  for (const m of messages) {
+    for (const part of m.parts) {
+      if (part.type === "data-present-state") return part.data as PresentState;
+    }
+  }
+  return null;
 }
 
 export default function DepthPage() {
@@ -53,11 +69,12 @@ export default function DepthPage() {
   const setFinalScore = useAppStore((s) => s.setFinalScore);
   const setFutureStarted = useAppStore((s) => s.setFutureStarted);
   const futureStarted = useAppStore((s) => s.futureStarted);
+  const ticker = useAppStore((s) => s.ticker);
 
   // Primary chat: background + past + present + partial score
   const mainTransport = useMemo(
-    () => new DefaultChatTransport<AppUIMessage>({ api: "/api/depth-stream" }),
-    [],
+    () => new DefaultChatTransport<AppUIMessage>({ api: "/api/depth-stream", body: { ticker } }),
+    [ticker],
   );
   const main = useChat<AppUIMessage>({ transport: mainTransport });
 
@@ -80,11 +97,10 @@ export default function DepthPage() {
   }, [main]);
 
   const mainFeeds = useMemo(() => extractFeedLines(main.messages), [main.messages]);
-  const futureFeeds = useMemo(
-    () => extractFeedLines(future.messages),
-    [future.messages],
-  );
+  const futureFeeds = useMemo(() => extractFeedLines(future.messages), [future.messages]);
   const partialScore = useMemo(() => extractScore(main.messages), [main.messages]);
+  const pastClaims = useMemo(() => extractPastClaims(main.messages), [main.messages]);
+  const presentState = useMemo(() => extractPresentState(main.messages), [main.messages]);
   const finalFutureScore = useMemo(
     () => extractScore(future.messages),
     [future.messages],
@@ -168,10 +184,12 @@ export default function DepthPage() {
         <PastCredibilityPanel
           lines={mainFeeds.past.lines}
           done={mainFeeds.past.done}
+          pastClaims={pastClaims ?? undefined}
         />
         <PresentStatePanel
           lines={mainFeeds.present.lines}
           done={mainFeeds.present.done}
+          presentState={presentState ?? undefined}
         />
         <FutureSimulationPanel
           lines={futureFeeds.future.lines}

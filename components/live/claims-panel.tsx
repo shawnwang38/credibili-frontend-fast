@@ -6,7 +6,7 @@ import { DefaultChatTransport } from "ai";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
 import type { AppUIMessage } from "@/lib/api-types";
-import type { Claim } from "@/lib/schemas";
+import type { Claim, SessionMetrics } from "@/lib/schemas";
 import { ProceedDialog } from "@/components/live/proceed-dialog";
 
 function formatTime(s: number) {
@@ -15,14 +15,33 @@ function formatTime(s: number) {
   return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
 }
 
-export function ClaimsPanel() {
-  const transport = useMemo(
-    () => new DefaultChatTransport<AppUIMessage>({ api: "/api/live-stream" }),
-    [],
+function CredibilityBadge({ score }: { score: number | null | undefined }) {
+  if (score == null) return null;
+  const pct = Math.round(score * 100);
+  const color = score >= 0.7 ? "var(--success)" : score >= 0.4 ? "var(--warning)" : "var(--danger)";
+  return (
+    <span
+      className="border px-1.5 py-0.5 text-[9px] tabular-nums uppercase tracking-widest"
+      style={{ borderColor: color, color }}
+    >
+      {pct}%
+    </span>
   );
-  const { messages, sendMessage, status } = useChat<AppUIMessage>({
-    transport,
-  });
+}
+
+export function ClaimsPanel() {
+  const youtubeUrl = useAppStore((s) => s.youtubeUrl);
+  const ticker = useAppStore((s) => s.ticker);
+  const setSessionMetrics = useAppStore((s) => s.setSessionMetrics);
+
+  const transport = useMemo(
+    () => new DefaultChatTransport<AppUIMessage>({
+      api: "/api/live-stream",
+      body: { youtubeUrl, ticker },
+    }),
+    [youtubeUrl, ticker],
+  );
+  const { messages, sendMessage, status } = useChat<AppUIMessage>({ transport });
 
   const kickedOff = useRef(false);
   useEffect(() => {
@@ -35,36 +54,37 @@ export function ClaimsPanel() {
     const out: Claim[] = [];
     for (const m of messages) {
       for (const part of m.parts) {
-        if (part.type === "data-claim") {
-          out.push(part.data as Claim);
-        }
+        if (part.type === "data-claim") out.push(part.data as Claim);
       }
     }
     return out;
   }, [messages]);
+
+  // Save session metrics to store when they arrive
+  useEffect(() => {
+    for (const m of messages) {
+      for (const part of m.parts) {
+        if (part.type === "data-session-metrics") {
+          setSessionMetrics(part.data as SessionMetrics);
+        }
+      }
+    }
+  }, [messages, setSessionMetrics]);
 
   const selectedClaim = useAppStore((s) => s.selectedClaim);
   const setSelectedClaim = useAppStore((s) => s.setSelectedClaim);
   const [proceedOpen, setProceedOpen] = useState(false);
 
   return (
-    <section
-      className="flex h-full flex-col overflow-hidden"
-      style={{ background: "var(--panel)" }}
-    >
+    <section className="flex h-full flex-col overflow-hidden" style={{ background: "var(--panel)" }}>
       <div
         className="flex items-center justify-between border-b px-3 py-2 text-[10px] uppercase tracking-widest"
-        style={{
-          borderColor: "var(--border)",
-          color: "var(--muted-foreground)",
-        }}
+        style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
       >
         <span>▸ KEY CLAIMS</span>
         <span>
           {claims.length} CAPTURED
-          {status === "streaming" && (
-            <span style={{ color: "var(--accent)" }}> · LIVE</span>
-          )}
+          {status === "streaming" && <span style={{ color: "var(--accent)" }}> · LIVE</span>}
         </span>
       </div>
 
@@ -87,59 +107,57 @@ export function ClaimsPanel() {
                 className="cursor-pointer border-b px-3 py-3 transition-colors"
                 style={{
                   borderColor: "var(--border)",
-                  background: active
-                    ? "var(--background)"
-                    : "transparent",
-                  borderLeft: active
-                    ? "3px solid var(--accent)"
-                    : "3px solid transparent",
+                  background: active ? "var(--background)" : "transparent",
+                  borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent",
                 }}
               >
                 <div
-                  className="mb-1 flex justify-between text-[10px] uppercase tracking-widest"
+                  className="mb-1 flex items-center justify-between gap-2 text-[10px] uppercase tracking-widest"
                   style={{ color: "var(--muted-foreground)" }}
                 >
-                  <span style={{ color: "var(--accent)" }}>
-                    [{formatTime(c.timestamp)}]
+                  <span style={{ color: "var(--accent)" }}>[{formatTime(c.timestamp)}]</span>
+                  <span className="flex items-center gap-1.5">
+                    {c.topic && <span>{c.topic}</span>}
+                    {c.isRedFlag && (
+                      <span
+                        className="border px-1 py-0.5 text-[9px]"
+                        style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
+                        title={c.redFlagReason ?? "Red flag"}
+                      >
+                        ⚑ FLAG
+                      </span>
+                    )}
+                    <CredibilityBadge score={c.credibilityScore} />
                   </span>
-                  <span>CLAIM {c.id.toUpperCase()}</span>
                 </div>
-                <div
-                  className="mb-1 text-sm"
-                  style={{ color: "var(--foreground)" }}
-                >
+                <div className="mb-1 text-sm" style={{ color: "var(--foreground)" }}>
                   {c.text}
                 </div>
-                <div
-                  className="text-xs italic"
-                  style={{ color: "var(--muted-foreground)" }}
-                >
+                <div className="text-xs italic" style={{ color: "var(--muted-foreground)" }}>
                   &ldquo;{c.verbatim}&rdquo;
                 </div>
+                {c.scoreExplanation && (
+                  <div className="mt-1 text-[10px]" style={{ color: "var(--muted-foreground)" }}>
+                    {c.scoreExplanation}
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
       </div>
 
-      <div
-        className="border-t px-3 py-2"
-        style={{ borderColor: "var(--border)", background: "var(--panel)" }}
-      >
+      <div className="border-t px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
         <Button
           onClick={() => setProceedOpen(true)}
           disabled={!selectedClaim}
           className="w-full uppercase tracking-widest"
           style={{
             background: selectedClaim ? "var(--accent)" : "var(--muted)",
-            color: selectedClaim
-              ? "var(--accent-foreground)"
-              : "var(--muted-foreground)",
+            color: selectedClaim ? "var(--accent-foreground)" : "var(--muted-foreground)",
           }}
         >
-          {selectedClaim
-            ? "Proceed to Depth Mode →"
-            : "Select a claim to proceed"}
+          {selectedClaim ? "Proceed to Depth Mode →" : "Select a claim to proceed"}
         </Button>
       </div>
 

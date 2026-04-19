@@ -1,8 +1,9 @@
 "use client";
 
 import { create } from "zustand";
-import type { Claim, Score } from "@/lib/schemas";
+import type { Claim, Score, SessionMetrics } from "@/lib/schemas";
 import type { FeedPanel } from "@/lib/api-types";
+import { DEFAULT_COMPANY } from "@/lib/fixtures";
 
 type PanelCompletion = Record<FeedPanel, boolean>;
 
@@ -25,6 +26,13 @@ type AppState = {
 
   futureStarted: boolean;
   setFutureStarted: (v: boolean) => void;
+
+  sessionMetrics: SessionMetrics | null;
+  setSessionMetrics: (m: SessionMetrics) => void;
+
+  youtubeUrl: string;
+  ticker: string;
+  setLiveContext: (youtubeUrl: string, ticker: string) => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -65,4 +73,11 @@ export const useAppStore = create<AppState>((set) => ({
 
   futureStarted: false,
   setFutureStarted: (v) => set({ futureStarted: v }),
+
+  sessionMetrics: null,
+  setSessionMetrics: (m) => set({ sessionMetrics: m }),
+
+  youtubeUrl: "",
+  ticker: DEFAULT_COMPANY.ticker,
+  setLiveContext: (youtubeUrl, ticker) => set({ youtubeUrl, ticker }),
 }));

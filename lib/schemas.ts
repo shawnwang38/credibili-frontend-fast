@@ -3,10 +3,30 @@ import { z } from "zod";
 export const ClaimSchema = z.object({
   id: z.string(),
   timestamp: z.number(), // seconds into video
-  text: z.string(), // short summary
-  verbatim: z.string(), // full quote
+  text: z.string(), // short summary label
+  verbatim: z.string(), // full verbatim quote
+  // enriched fields from backend
+  credibilityScore: z.number().min(0).max(1).nullish(),
+  speaker: z.string().nullish(),
+  topic: z.string().nullish(),
+  confidenceLevel: z.enum(["hedged", "moderate", "strong"]).nullish(),
+  isRedFlag: z.boolean().nullish(),
+  redFlagReason: z.string().nullish(),
+  scoreExplanation: z.string().nullish(),
 });
 export type Claim = z.infer<typeof ClaimSchema>;
+
+export const SessionMetricsSchema = z.object({
+  transparency: z.number(),
+  delivery: z.number(),
+  consistency: z.number(),
+  industryRelativity: z.number(),
+  confidenceCalibration: z.number(),
+  accuracy: z.number(),
+  overall: z.number(),
+  summary: z.string(),
+});
+export type SessionMetrics = z.infer<typeof SessionMetricsSchema>;
 
 export const PastClaimSchema = z.object({
   id: z.string(),

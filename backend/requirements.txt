@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+websockets
+yt-dlp
+openai-whisper
+yfinance
+anthropic
+sqlite3
+pydantic
+python-multipart
+httpx
+ 

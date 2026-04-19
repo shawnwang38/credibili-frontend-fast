@@ -24,7 +24,7 @@ function truncate(s: string, n: number) {
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
-  const youtubeUrl = (body.youtubeUrl as string | undefined) ?? `https://www.youtube.com/watch?v=${DEFAULT_VIDEO_ID}`;
+  const youtubeUrl = (body.youtubeUrl as string | undefined) || `https://www.youtube.com/watch?v=${DEFAULT_VIDEO_ID}`;
   const ticker = (body.ticker as string | undefined) ?? DEFAULT_COMPANY.ticker;
 
   const stream = createUIMessageStream<AppUIMessage>({

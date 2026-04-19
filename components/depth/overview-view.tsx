@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
-import { DEFAULT_CLAIM, DEFAULT_COMPANY } from "@/lib/fixtures";
 
 type Verdict = "Likely" | "Mixed" | "Unlikely";
 
@@ -24,15 +23,13 @@ export function OverviewView() {
   const setDepthView = useAppStore((s) => s.setDepthView);
   const finalScore = useAppStore((s) => s.finalScore);
   const selectedClaim = useAppStore((s) => s.selectedClaim);
+  const ticker = useAppStore((s) => s.ticker);
 
-  const past = finalScore?.pastDelivery ?? 62;
-  const current = finalScore?.currentMarket ?? 54;
-  const future = finalScore?.futureSimulation;
-  const futureLabel = future == null ? "NOT RUN" : String(future);
+  const past = finalScore?.pastDelivery ?? 0;
+  const current = finalScore?.currentMarket ?? 0;
 
-  const present = [past, current, ...(future != null ? [future] : [])];
-  const verdict: Verdict = computeVerdict(present);
-  const claimText = selectedClaim?.text ?? DEFAULT_CLAIM;
+  const verdict: Verdict = computeVerdict([past, current]);
+  const claimText = selectedClaim?.text ?? "No claim selected";
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
@@ -44,7 +41,7 @@ export function OverviewView() {
           color: "var(--muted-foreground)",
         }}
       >
-        <span>▸ DEPTH OVERVIEW · {DEFAULT_COMPANY.ticker}</span>
+        <span>▸ DEPTH OVERVIEW · {ticker}</span>
         <span style={{ color: "var(--success)" }}>● COMPLETE</span>
       </div>
 
@@ -56,32 +53,21 @@ export function OverviewView() {
           >
             Selected claim
           </div>
-          <div
-            className="mt-2 text-xl"
-            style={{ color: "var(--foreground)" }}
-          >
-            “{claimText}”
+          <div className="mt-2 text-xl" style={{ color: "var(--foreground)" }}>
+            "{claimText}"
           </div>
 
           <div
-            className="mt-8 grid grid-cols-3 gap-px"
+            className="mt-8 grid grid-cols-2 gap-px"
             style={{ background: "var(--border)" }}
           >
             <ScoreTile label="PAST DELIVERY" value={String(past)} />
             <ScoreTile label="CURRENT MARKET" value={String(current)} />
-            <ScoreTile
-              label="FUTURE SIMULATION"
-              value={futureLabel}
-              dim={future == null}
-            />
           </div>
 
           <div
             className="mt-px flex items-center justify-between border-t px-6 py-5"
-            style={{
-              background: "var(--panel)",
-              borderColor: "var(--border)",
-            }}
+            style={{ background: "var(--panel)", borderColor: "var(--border)" }}
           >
             <div className="flex flex-col">
               <span
@@ -102,7 +88,7 @@ export function OverviewView() {
               style={{ color: "var(--muted-foreground)" }}
             >
               {verdict === "Likely" &&
-                "Past delivery, market position and stakeholder dynamics all support this claim."}
+                "Past delivery and market position both support this claim."}
               {verdict === "Mixed" &&
                 "Some signals support the claim; others raise caution. Read the breakdown."}
               {verdict === "Unlikely" &&
@@ -124,11 +110,10 @@ export function OverviewView() {
               ← Back to analysis breakdown
             </Button>
             <div
-              className="text-[10px] uppercase tracking-widest"
+              className="text-[10px] uppercase tracking-widest self-center"
               style={{ color: "var(--muted-foreground)" }}
             >
-              {DEFAULT_COMPANY.name} · {DEFAULT_COMPANY.sector} ·{" "}
-              {DEFAULT_COMPANY.marketCap}
+              {ticker}
             </div>
           </div>
         </div>
@@ -137,15 +122,7 @@ export function OverviewView() {
   );
 }
 
-function ScoreTile({
-  label,
-  value,
-  dim,
-}: {
-  label: string;
-  value: string;
-  dim?: boolean;
-}) {
+function ScoreTile({ label, value }: { label: string; value: string }) {
   return (
     <div
       className="flex flex-col items-center justify-center px-6 py-8"
@@ -159,9 +136,7 @@ function ScoreTile({
       </div>
       <div
         className="mt-3 text-6xl font-bold tabular-nums"
-        style={{
-          color: dim ? "var(--muted-foreground)" : "var(--accent)",
-        }}
+        style={{ color: "var(--accent)" }}
       >
         {value}
       </div>
@@ -169,7 +144,7 @@ function ScoreTile({
         className="mt-1 text-[9px] uppercase tracking-widest"
         style={{ color: "var(--muted-foreground)" }}
       >
-        {dim ? "Skipped" : "/ 100"}
+        / 100
       </div>
     </div>
   );

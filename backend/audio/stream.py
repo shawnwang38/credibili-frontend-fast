@@ -76,21 +76,20 @@ async def stream_transcript(youtube_url: str, company_ticker: str, chunk_callbac
     chunk_callback: async function that receives a TranscriptChunk
     """
     print(f"Starting stream for {youtube_url}")
-    
-    stream_url = get_audio_stream_url(youtube_url)
-    
+
+    loop = asyncio.get_event_loop()
+    stream_url = await loop.run_in_executor(None, get_audio_stream_url, youtube_url)
+
     current_second = 0
     chunk_duration = 30  # seconds per chunk
- 
+
     while True:
         print(f"Processing chunk at {format_timestamp(current_second)}...")
-        
-        # Download this chunk
-        audio_path = download_audio_chunk(stream_url, current_second, chunk_duration)
-        
-        # Transcribe it
-        text = transcribe_chunk(audio_path)
-        
+
+        # Download and transcribe off the event loop thread
+        audio_path = await loop.run_in_executor(None, download_audio_chunk, stream_url, current_second, chunk_duration)
+        text = await loop.run_in_executor(None, transcribe_chunk, audio_path)
+
         # Clean up temp file
         os.remove(audio_path)
         

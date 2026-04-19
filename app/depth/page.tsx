@@ -10,7 +10,6 @@ import { AnalyzingBanner } from "@/components/depth/analyzing-banner";
 import { BackgroundPanel } from "@/components/depth/background-panel";
 import { PastCredibilityPanel } from "@/components/depth/past-credibility-panel";
 import { PresentStatePanel } from "@/components/depth/present-state-panel";
-import { FutureSimulationPanel } from "@/components/depth/future-simulation-panel";
 import { OverviewView } from "@/components/depth/overview-view";
 
 type FeedLineData = { panel: FeedPanel; line: string; done?: boolean };
@@ -67,27 +66,13 @@ export default function DepthPage() {
   const setDepthView = useAppStore((s) => s.setDepthView);
   const markPanelDone = useAppStore((s) => s.markPanelDone);
   const setFinalScore = useAppStore((s) => s.setFinalScore);
-  const setFutureStarted = useAppStore((s) => s.setFutureStarted);
-  const futureStarted = useAppStore((s) => s.futureStarted);
   const ticker = useAppStore((s) => s.ticker);
 
-  // Primary chat: background + past + present + partial score
   const mainTransport = useMemo(
     () => new DefaultChatTransport<AppUIMessage>({ api: "/api/depth-stream", body: { ticker } }),
     [ticker],
   );
   const main = useChat<AppUIMessage>({ transport: mainTransport });
-
-  // Future chat (kicked when user clicks Start) — body.runFuture=true tells route to stream future panel
-  const futureTransport = useMemo(
-    () =>
-      new DefaultChatTransport<AppUIMessage>({
-        api: "/api/depth-stream",
-        body: { runFuture: true },
-      }),
-    [],
-  );
-  const future = useChat<AppUIMessage>({ transport: futureTransport });
 
   const kickedOff = useRef(false);
   useEffect(() => {
@@ -97,16 +82,10 @@ export default function DepthPage() {
   }, [main]);
 
   const mainFeeds = useMemo(() => extractFeedLines(main.messages), [main.messages]);
-  const futureFeeds = useMemo(() => extractFeedLines(future.messages), [future.messages]);
   const partialScore = useMemo(() => extractScore(main.messages), [main.messages]);
   const pastClaims = useMemo(() => extractPastClaims(main.messages), [main.messages]);
   const presentState = useMemo(() => extractPresentState(main.messages), [main.messages]);
-  const finalFutureScore = useMemo(
-    () => extractScore(future.messages),
-    [future.messages],
-  );
 
-  // Mark panel completion in store as their done flags arrive
   useEffect(() => {
     if (mainFeeds.background.done) markPanelDone("background");
     if (mainFeeds.past.done) markPanelDone("past");
@@ -114,53 +93,23 @@ export default function DepthPage() {
   }, [mainFeeds.background.done, mainFeeds.past.done, mainFeeds.present.done, markPanelDone]);
 
   useEffect(() => {
-    if (futureFeeds.future.done) markPanelDone("future");
-  }, [futureFeeds.future.done, markPanelDone]);
+    if (partialScore) setFinalScore(partialScore);
+  }, [partialScore, setFinalScore]);
 
-  // Save score (final = future score if available, else partial)
-  useEffect(() => {
-    const sc = finalFutureScore ?? partialScore;
-    if (sc) setFinalScore(sc);
-  }, [partialScore, finalFutureScore, setFinalScore]);
-
-  // Auto-swap to overview when:
-  // - future was run AND its score has arrived, OR
-  // - past+present done AND user has decided not to start future (we wait for the partial score)
+  // Auto-swap to overview when background+past+present done and score is ready
   const completion = useAppStore((s) => s.panelCompletion);
   useEffect(() => {
     let cancelled = false;
-    const allRequiredDone =
-      completion.background &&
-      completion.past &&
-      completion.present &&
-      (futureStarted ? completion.future : true);
-    const haveScore = futureStarted ? !!finalFutureScore : !!partialScore;
-    if (allRequiredDone && haveScore && depthView === "analysis") {
+    const allDone = completion.background && completion.past && completion.present;
+    if (allDone && partialScore && depthView === "analysis") {
       const t = setTimeout(() => {
         if (!cancelled) setDepthView("overview");
       }, 1500);
-      return () => {
-        cancelled = true;
-        clearTimeout(t);
-      };
+      return () => { cancelled = true; clearTimeout(t); };
     }
-  }, [
-    completion.background,
-    completion.past,
-    completion.present,
-    completion.future,
-    futureStarted,
-    finalFutureScore,
-    partialScore,
-    depthView,
-    setDepthView,
-  ]);
+  }, [completion.background, completion.past, completion.present, partialScore, depthView, setDepthView]);
 
-  const allDone =
-    completion.background &&
-    completion.past &&
-    completion.present &&
-    (futureStarted ? completion.future : true);
+  const allDone = completion.background && completion.past && completion.present;
 
   if (depthView === "overview") {
     return <OverviewView />;
@@ -177,10 +126,7 @@ export default function DepthPage() {
           background: "var(--border)",
         }}
       >
-        <BackgroundPanel
-          lines={mainFeeds.background.lines}
-          done={mainFeeds.background.done}
-        />
+        <BackgroundPanel lines={mainFeeds.background.lines} done={mainFeeds.background.done} />
         <PastCredibilityPanel
           lines={mainFeeds.past.lines}
           done={mainFeeds.past.done}
@@ -191,14 +137,15 @@ export default function DepthPage() {
           done={mainFeeds.present.done}
           presentState={presentState ?? undefined}
         />
-        <FutureSimulationPanel
-          lines={futureFeeds.future.lines}
-          done={futureFeeds.future.done}
-          onStart={() => {
-            setFutureStarted(true);
-            void future.sendMessage({ text: "future" });
-          }}
-        />
+        {/* Future simulation removed — overview generates on demand */}
+        <div
+          className="flex items-center justify-center"
+          style={{ background: "var(--panel)", color: "var(--muted-foreground)" }}
+        >
+          <span className="text-[10px] uppercase tracking-widest">
+            Future simulation — coming soon
+          </span>
+        </div>
       </div>
     </div>
   );

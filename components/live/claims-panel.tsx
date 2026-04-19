@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { Button } from "@/components/ui/button";
@@ -43,12 +43,11 @@ export function ClaimsPanel() {
   );
   const { messages, sendMessage, status } = useChat<AppUIMessage>({ transport });
 
-  const kickedOff = useRef(false);
   useEffect(() => {
-    if (kickedOff.current) return;
-    kickedOff.current = true;
+    if (!youtubeUrl) return;
     void sendMessage({ text: "start" });
-  }, [sendMessage]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [youtubeUrl]);
 
   const claims: Claim[] = useMemo(() => {
     const out: Claim[] = [];

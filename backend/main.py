@@ -118,8 +118,9 @@ async def analyze_stream(websocket: WebSocket):
 
             claims = await extract_claims(chunk)
 
+            loop = asyncio.get_event_loop()
             for claim in claims:
-                scored = score_claim(claim, financial_context)
+                scored = await loop.run_in_executor(None, score_claim, claim, financial_context)
                 save_claim(scored)
                 session_claims.append(scored)
 
